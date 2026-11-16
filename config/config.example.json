@@ -1,0 +1,43 @@
+{
+  "server": {
+    "port": 3000,
+    "host": "0.0.0.0"
+  },
+  "serial": {
+    "baudRate": 115200,
+    "autoReconnect": false,
+    "reconnectIntervalMs": 3000
+  },
+  "thresholds": {
+    "heartRate": {
+      "criticalLow": 40,
+      "warningLow": 50,
+      "normalLow": 60,
+      "normalHigh": 100,
+      "warningHigh": 120,
+      "criticalHigh": 130
+    },
+    "spo2": {
+      "criticalLow": 90,
+      "warningLow": 94,
+      "normalLow": 95,
+      "normalHigh": 100
+    },
+    "ecg": {
+      "sampleRateHz": 250,
+      "leadOffDetection": true,
+      "arrhythmiaThresholdBpmDiff": 30
+    }
+  },
+  "alert": {
+    "autoAcknowledge": false,
+    "soundEnabled": true,
+    "cooldownMs": 1500
+  },
+  "wifi": {
+    "ssid": "YOUR_WIFI_SSID",
+    "password": "YOUR_WIFI_PASSWORD",
+    "backendWsUrl": "ws://YOUR_COMPUTER_IP:3000/ws/esp32"
+  }
+}
+

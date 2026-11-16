@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cardiac Health Monitoring System | ESP32</title>
+  <link rel="stylesheet" href="style.css" />
+  <!-- Chart.js for ECG and Trend Visualization -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="theme-normal">
+
+  <!-- ============================================================== -->
+  <!-- CRITICAL RED SCREEN EMERGENCY OVERLAY & BANNER -->
+  <!-- ============================================================== -->
+  <div id="criticalAlarmOverlay" class="critical-alarm-overlay hidden">
+    <div class="alarm-banner-container">
+      <div class="alarm-banner-header">
+        <span class="alarm-icon">⚠️</span>
+        <div class="alarm-title-block">
+          <h1 class="alarm-title">CRITICAL HEALTH WARNING</h1>
+          <p class="alarm-subtitle">IMMEDIATE ATTENTION REQUIRED — ABNORMAL VITALS DETECTED</p>
+        </div>
+        <button id="btnAcknowledgeAlarm" class="btn-acknowledge">ACKNOWLEDGE ALARM</button>
+      </div>
+
+      <div class="alarm-details-grid">
+        <div class="alarm-detail-card">
+          <span class="detail-label">Abnormal Readings</span>
+          <div id="alarmAbnormalReadings" class="detail-value text-red">Evaluating...</div>
+        </div>
+        <div class="alarm-detail-card">
+          <span class="detail-label">Alert Reason / Pathology Indicator</span>
+          <div id="alarmReasons" class="detail-value">Awaiting clinical parameters...</div>
+        </div>
+        <div class="alarm-detail-card">
+          <span class="detail-label">Alarm Timestamp</span>
+          <div id="alarmTimestamp" class="detail-value text-muted">--:--:--</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Audio Activation Notice (Browser Autoplay Requirement) -->
+  <div id="audioUnlockPrompt" class="audio-prompt-bar">
+    <span>🔊 Emergency Alert Audio System: Click to enable audio alarms for medical alerts.</span>
+    <button id="btnEnableAudio" class="btn-audio-enable">ENABLE ALARM AUDIO</button>
+  </div>
+
+  <!-- ============================================================== -->
+  <!-- MAIN CONTAINER -->
+  <!-- ============================================================== -->
+  <div class="app-container">
+
+    <!-- HEADER SECTION -->
+    <header class="app-header">
+      <div class="header-left">
+        <div class="logo-pulse-box">
+          <div class="pulse-ring"></div>
+          <span class="heart-icon">❤️</span>
+        </div>
+        <div>
+          <h1 class="system-title">CARDIAC HEALTH MONITORING SYSTEM</h1>
+          <p class="system-subtitle">Real-Time ECG, Heart Rate and Oxygen Monitoring | ESP32 • MAX30102 • AD8232</p>
+        </div>
+      </div>
+
+      <div class="header-right">
+        <!-- Live Clock -->
+        <div class="header-metric">
+          <span class="metric-label">SYSTEM TIME</span>
+          <span id="systemClock" class="metric-value font-mono">--:--:--</span>
+        </div>
+
+        <!-- Selected Connection Mode -->
+        <div class="header-metric">
+          <span class="metric-label">ACTIVE MODE</span>
+          <span id="activeModeBadge" class="mode-badge mode-usb">USB SERIAL</span>
+        </div>
+
+        <!-- Monitoring Status -->
+        <div class="header-metric">
+          <span class="metric-label">STATUS</span>
+          <span id="monitoringStatusBadge" class="status-badge status-normal">NORMAL MONITORING</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- ============================================================== -->
+    <!-- DUAL CONNECTION SETTINGS PANEL -->
+    <!-- ============================================================== -->
+    <section class="connection-section">
+      <div class="panel-header">
+        <div class="panel-title-group">
+          <h2>Connection Settings</h2>
+          <span class="panel-caption">Select between USB Wired (SerialPort) and Wireless (Wi-Fi WebSocket)</span>
+        </div>
+        <div class="mode-toggle-group">
+          <button id="tabModeUsb" class="btn-toggle active" data-mode="USB">USB SERIAL MODE</button>
+          <button id="tabModeWifi" class="btn-toggle" data-mode="WIFI">WI-FI MODE</button>
+        </div>
+      </div>
+
+      <!-- Mode 1: USB Serial Settings Box -->
+      <div id="usbControls" class="connection-body">
+        <div class="form-row">
+          <div class="form-group flex-2">
+            <label for="comPortSelect">ESP32 COM Port</label>
+            <div class="input-with-button">
+              <select id="comPortSelect" class="input-select">
+                <option value="">Searching for serial ports...</option>
+              </select>
+              <button id="btnRefreshPorts" class="btn-secondary" title="Refresh available COM ports">↻ Refresh</button>
+            </div>
+          </div>
+
+          <div class="form-group flex-1">
+            <label>Baud Rate</label>
+            <input type="text" class="input-text" value="115200" readonly />
+          </div>
+
+          <div class="form-group flex-actions">
+            <label>&nbsp;</label>
+            <div class="btn-group">
+              <button id="btnConnectSerial" class="btn-primary">Connect USB</button>
+              <button id="btnWebSerial" class="btn-secondary" title="Connect directly in Chrome or Edge without backend">⚡ Web Serial</button>
+              <button id="btnDisconnectSerial" class="btn-danger" disabled>Disconnect</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="connection-status-row">
+          <span class="status-indicator-dot" id="usbStatusDot"></span>
+          <span id="usbStatusText" class="status-desc">Serial: Disconnected. Select port and click Connect.</span>
+        </div>
+      </div>
+
+      <!-- Mode 2: Wi-Fi Settings Box -->
+      <div id="wifiControls" class="connection-body hidden">
+        <!-- Direct IP Connection Form -->
+        <div class="form-row">
+          <div class="form-group flex-2">
+            <label for="ipAddressInput">Target IP Address (ESP32 or Computer Server)</label>
+            <div class="input-with-button">
+              <input type="text" id="ipAddressInput" class="input-text font-mono" placeholder="10.235.101.1 or 192.168.1.xxx" />
+              <button id="btnDetectIp" class="btn-secondary" title="Auto-detect computer LAN IP">🔍 Auto-Detect IP</button>
+            </div>
+          </div>
+
+          <div class="form-group flex-1">
+            <label for="ipPortInput">Port</label>
+            <input type="number" id="ipPortInput" class="input-text font-mono" value="3000" />
+          </div>
+
+          <div class="form-group flex-actions">
+            <label>&nbsp;</label>
+            <div class="btn-group">
+              <button id="btnConnectIp" class="btn-primary">Connect via IP</button>
+              <button id="btnDisconnectIp" class="btn-danger" disabled>Disconnect</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="connection-status-row">
+          <span class="status-indicator-dot" id="wifiStatusDot"></span>
+          <span id="wifiStatusText" class="status-desc">Wi-Fi: Disconnected. Enter IP address and click "Connect via IP".</span>
+        </div>
+
+        <div class="wifi-info-grid" style="margin-top: 14px;">
+          <div class="wifi-card">
+            <span class="wifi-label">ESP32 Device IP</span>
+            <span id="esp32IpDisplay" class="wifi-val font-mono">Not Connected</span>
+          </div>
+
+          <div class="wifi-card">
+            <span class="wifi-label">Target WebSocket / HTTP URL</span>
+            <span id="backendWsUrlDisplay" class="wifi-val font-mono">ws://10.235.101.1:3000/ws/dashboard</span>
+          </div>
+
+          <div class="wifi-card">
+            <span class="wifi-label">Wireless Stream Mode</span>
+            <span id="wifiModeIndicator" class="wifi-val font-mono">STANDBY</span>
+          </div>
+        </div>
+
+        <div class="wifi-instructions">
+          <p><strong>Wireless Connection:</strong> Enter your computer's IP address (e.g. <code>10.235.101.1</code>) or your ESP32's IP address to stream live cardiac vitals over your Wi-Fi network.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================== -->
+    <!-- SENSOR MONITORING SECTION (3 MAJOR CARDS) -->
+    <!-- ============================================================== -->
+    <main class="dashboard-grid">
+
+      <!-- CARD 1: HEART RATE (MAX30102) -->
+      <section class="card sensor-card" id="heartRateCard">
+        <div class="card-header">
+          <div class="card-title-box">
+            <span class="sensor-icon">💓</span>
+            <div>
+              <h3>HEART RATE</h3>
+              <span class="card-subtitle">MAX30102 Optical PPG Sensor</span>
+            </div>
+          </div>
+          <span id="max30102StatusBadge" class="mini-badge badge-normal">CONNECTED</span>
+        </div>
+
+        <div class="vital-readout">
+          <div class="vital-number-box">
+            <span id="valHeartRate" class="vital-number font-mono">--</span>
+            <span class="vital-unit">BPM</span>
+          </div>
+          <div class="vital-pulse-icon" id="heartBeatIcon">❤️</div>
+        </div>
+
+        <!-- Heart Rate Trend Line Chart -->
+        <div class="trend-chart-container">
+          <canvas id="heartRateChart" height="90"></canvas>
+        </div>
+
+        <div class="card-footer">
+          <div class="footer-stat">
+            <span class="stat-name">Signal Quality:</span>
+            <span id="hrSignalQuality" class="stat-val font-bold">AWAITING SENSOR</span>
+          </div>
+          <div class="footer-stat">
+            <span class="stat-name">Target Range:</span>
+            <span class="stat-val">60 - 100 BPM</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- CARD 2: BLOOD OXYGEN (SpO2) -->
+      <section class="card sensor-card" id="spo2Card">
+        <div class="card-header">
+          <div class="card-title-box">
+            <span class="sensor-icon">🫧</span>
+            <div>
+              <h3>BLOOD OXYGEN (SpO2)</h3>
+              <span class="card-subtitle">MAX30102 Red & Infrared Photoplethysmography</span>
+            </div>
+          </div>
+          <span id="spo2StatusBadge" class="mini-badge badge-normal">ONLINE</span>
+        </div>
+
+        <div class="vital-readout">
+          <div class="vital-number-box">
+            <span id="valSpo2" class="vital-number font-mono">--</span>
+            <span class="vital-unit">%</span>
+          </div>
+          <div class="spo2-meter-box">
+            <div class="spo2-bar-bg">
+              <div id="spo2FillBar" class="spo2-bar-fill" style="width: 0%;"></div>
+            </div>
+            <span class="meter-caption">Saturation Scale (90% - 100%)</span>
+          </div>
+        </div>
+
+        <!-- SpO2 Trend Line Chart -->
+        <div class="trend-chart-container">
+          <canvas id="spo2Chart" height="90"></canvas>
+        </div>
+
+        <div class="card-footer">
+          <div class="footer-stat">
+            <span class="stat-name">Sensor Contact:</span>
+            <span id="spo2FingerQuality" class="stat-val font-bold">CHECKING</span>
+          </div>
+          <div class="footer-stat">
+            <span class="stat-name">Normal Level:</span>
+            <span class="stat-val">&ge; 95%</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- CARD 3: REAL-TIME ECG MONITORING (AD8232) -->
+      <section class="card sensor-card card-full-width" id="ecgCard">
+        <div class="card-header">
+          <div class="card-title-box">
+            <span class="sensor-icon">📈</span>
+            <div>
+              <h3>REAL-TIME ECG WAVEFORM</h3>
+              <span class="card-subtitle">AD8232 Single-Lead Electrocardiogram | GPIO 34 (250 Samples/Sec)</span>
+            </div>
+          </div>
+          <div class="card-header-tags">
+            <span id="leadOffBadge" class="mini-badge badge-normal">LEADS ATTACHED</span>
+            <span id="ecgQualityBadge" class="mini-badge badge-normal">GOOD SIGNAL</span>
+          </div>
+        </div>
+
+        <!-- Continuous Real-time Waveform Canvas -->
+        <div class="ecg-graph-wrapper">
+          <div class="ecg-grid-overlay"></div>
+          <canvas id="ecgWaveformChart"></canvas>
+        </div>
+
+        <div class="ecg-footer-grid">
+          <div class="ecg-stat-item">
+            <span class="ecg-stat-label">Lead Off Status (LO+ / LO-)</span>
+            <span id="ecgLeadOffText" class="ecg-stat-value text-green">NORMAL (Connected)</span>
+          </div>
+          <div class="ecg-stat-item">
+            <span class="ecg-stat-label">Raw Amplitude (ADC)</span>
+            <span id="ecgRawVal" class="ecg-stat-value font-mono">2048</span>
+          </div>
+          <div class="ecg-stat-item">
+            <span class="ecg-stat-label">Estimated Voltage</span>
+            <span id="ecgVoltVal" class="ecg-stat-value font-mono">1.65 V</span>
+          </div>
+          <div class="ecg-stat-item">
+            <span class="ecg-stat-label">ECG Signal Health</span>
+            <span id="ecgHealthText" class="ecg-stat-value text-green">OPTIMAL</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- EARLY WARNING & CLINICAL STATUS SUMMARY PANEL -->
+      <section class="card card-full-width alert-summary-card">
+        <div class="card-header">
+          <div class="card-title-box">
+            <span class="sensor-icon">🛡️</span>
+            <div>
+              <h3>CARDIAC WARNING & DIAGNOSTIC RULES ENGINE</h3>
+              <span class="card-subtitle">Validated Multi-Parameter Clinical Threshold Monitoring</span>
+            </div>
+          </div>
+          <button id="btnTestAlarm" class="btn-outline-warning">⚡ Test Emergency Alarm</button>
+        </div>
+
+        <div class="rules-summary-grid">
+          <div class="rule-box">
+            <h4>HEART RATE THRESHOLDS</h4>
+            <ul>
+              <li><strong class="text-red">Critical High:</strong> &gt; 130 BPM (Severe Tachycardia)</li>
+              <li><strong class="text-yellow">Warning High:</strong> 101 - 120 BPM</li>
+              <li><strong class="text-green">Normal Range:</strong> 60 - 100 BPM</li>
+              <li><strong class="text-yellow">Warning Low:</strong> 50 - 59 BPM</li>
+              <li><strong class="text-red">Critical Low:</strong> &lt; 40 BPM (Severe Bradycardia)</li>
+            </ul>
+          </div>
+
+          <div class="rule-box">
+            <h4>OXYGEN SATURATION (SpO2)</h4>
+            <ul>
+              <li><strong class="text-green">Normal Range:</strong> 95% - 100%</li>
+              <li><strong class="text-yellow">Hypoxia Warning:</strong> 91% - 94%</li>
+              <li><strong class="text-red">Critical Hypoxemia:</strong> &le; 90%</li>
+            </ul>
+          </div>
+
+          <div class="rule-box">
+            <h4>ECG SIGNAL INTEGRITY</h4>
+            <ul>
+              <li><strong class="text-blue">Lead Off (LO+/LO-):</strong> Triggers "SENSOR DISCONNECTED"</li>
+              <li><strong class="text-yellow">High Noise:</strong> Triggers "WARNING: Poor Signal"</li>
+              <li><strong class="text-muted">Safety Rule:</strong> Lead disconnection does NOT trigger false cardiac emergencies.</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Prominent Medical Disclaimer -->
+        <div class="disclaimer-banner">
+          <strong>IMPORTANT MEDICAL & TECHNICAL DISCLAIMER:</strong> This system is an IoT hardware prototype developed for educational, experimental, and remote monitoring demonstration. Single-lead AD8232 ECG and optical MAX30102 sensors are not certified diagnostic medical equipment and cannot confirm or diagnose myocardial infarction (heart attack) or complex cardiac conditions.
+        </div>
+      </section>
+
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="app-footer">
+      <span>IoT Cardiac Health Monitoring System • ESP32 • MAX30102 • AD8232</span>
+      <span>Live In-Memory Telemetry • No External Database Required</span>
+    </footer>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
+

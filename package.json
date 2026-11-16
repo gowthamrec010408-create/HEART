@@ -1,0 +1,31 @@
+{
+  "name": "iot-cardiac-health-monitoring-system",
+  "version": "1.0.0",
+  "description": "IoT-Based Cardiac Health Monitoring and Early Warning System Using ESP32, MAX30102 and AD8232",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "keywords": [
+    "esp32",
+    "cardiac-monitoring",
+    "ecg",
+    "ad8232",
+    "max30102",
+    "spo2",
+    "heart-rate",
+    "iot",
+    "websocket",
+    "serialport"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "serialport": "^12.0.0",
+    "ws": "^8.18.0"
+  }
+}
+
